@@ -17,7 +17,8 @@ Telegram history.
 
 ## Compatibility
 
-The complete chat bridge requires the CloudCLI Omnichannel fork based on
+The complete chat bridge requires the
+[CloudCLI Omnichannel fork](https://github.com/n4ela/claudecodeui) based on
 CloudCLI `v1.37.1` or newer. Stock CloudCLI can load ordinary UI/server plugins,
 but its public plugin context does not expose the chat interception and fan-out
 hooks needed for a true WebUI ↔ Telegram shared session.
@@ -30,7 +31,8 @@ The split is intentional:
 ## Install
 
 1. Open **Settings → Plugins** in the compatible CloudCLI fork.
-2. Install this Git repository URL. CloudCLI clones it, installs dependencies,
+2. Install `https://github.com/n4ela/cloudcli-plugin-telegram-bridge.git`.
+   CloudCLI clones it, installs dependencies,
    and runs `npm run build`.
 3. Enable **Telegram Bridge** and restart the plugin if CloudCLI asks.
 4. Configure the internal service connection once on the CloudCLI host:
@@ -107,4 +109,3 @@ plugin during Git installation. Releases follow semantic versioning in both
 ## License
 
 MIT
-

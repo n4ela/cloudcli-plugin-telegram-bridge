@@ -5,6 +5,14 @@
   "description": "Bidirectional Telegram bridge and persistent scheduled agent turns for CloudCLI.",
   "license": "MIT",
   "author": "Ivanov D.V.",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/n4ela/cloudcli-plugin-telegram-bridge.git"
+  },
+  "homepage": "https://github.com/n4ela/cloudcli-plugin-telegram-bridge#readme",
+  "bugs": {
+    "url": "https://github.com/n4ela/cloudcli-plugin-telegram-bridge/issues"
+  },
   "type": "module",
   "engines": {
     "node": ">=20"
