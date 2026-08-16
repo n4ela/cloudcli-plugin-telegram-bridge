@@ -1,0 +1,20 @@
+{
+  "name": "cloudcli-plugin-telegram-bridge",
+  "version": "0.3.0",
+  "private": true,
+  "description": "Bidirectional Telegram bridge and persistent scheduled agent turns for CloudCLI.",
+  "license": "MIT",
+  "author": "Ivanov D.V.",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.7",
+    "typescript": "^5.9.3"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "name": "telegram-bridge",
+  "displayName": "Telegram Bridge",
+  "version": "0.3.0",
+  "description": "Mirror CloudCLI sessions to Telegram and run persistent scheduled Codex turns.",
+  "author": "Ivanov D.V.",
+  "icon": "icon.svg",
+  "type": "module",
+  "slot": "tab",
+  "entry": "dist/index.js",
+  "server": "dist/server.js",
+  "permissions": ["chat:read-write"]
+}
