@@ -176,8 +176,8 @@ export function mount(container: HTMLElement, api: PluginAPI): void {
                 </div>
                 <label style="display:grid;gap:5px;margin-bottom:10px"><span style="font-size:12px;font-weight:700">${escapeHtml(t('ui.taskPrompt'))}</span><textarea id="schedule-prompt" rows="6" placeholder="${escapeHtml(t('ui.taskPlaceholder'))}" style="resize:vertical;padding:10px 12px;border-radius:8px;border:1px solid ${colors.border};background:${colors.card};color:${colors.text};font:inherit"></textarea></label>
                 <div style="display:grid;grid-template-columns:minmax(170px,1fr) 140px minmax(160px,1fr);gap:10px;margin-bottom:12px">
-                  <label style="display:grid;gap:5px"><span style="font-size:12px;font-weight:700">${escapeHtml(t('ui.model'))}</span><input id="schedule-model" value="gpt-5.6-sol" style="padding:10px 12px;border-radius:8px;border:1px solid ${colors.border};background:${colors.card};color:${colors.text}" /></label>
-                  <label style="display:grid;gap:5px"><span style="font-size:12px;font-weight:700">${escapeHtml(t('ui.reasoning'))}</span><select id="schedule-effort" style="padding:10px 12px;border-radius:8px;border:1px solid ${colors.border};background:${colors.card};color:${colors.text}"><option>low</option><option>medium</option><option>high</option><option>xhigh</option><option selected>max</option><option>ultra</option></select></label>
+                  <label style="display:grid;gap:5px"><span style="font-size:12px;font-weight:700">${escapeHtml(t('ui.model'))}</span><input id="schedule-model" placeholder="${escapeHtml(t('ui.sessionSetting'))}" style="padding:10px 12px;border-radius:8px;border:1px solid ${colors.border};background:${colors.card};color:${colors.text}" /></label>
+                  <label style="display:grid;gap:5px"><span style="font-size:12px;font-weight:700">${escapeHtml(t('ui.reasoning'))}</span><select id="schedule-effort" style="padding:10px 12px;border-radius:8px;border:1px solid ${colors.border};background:${colors.card};color:${colors.text}"><option value="" selected>${escapeHtml(t('ui.sessionSetting'))}</option><option>low</option><option>medium</option><option>high</option><option>xhigh</option><option>max</option><option>ultra</option></select></label>
                   <label style="display:grid;gap:5px"><span style="font-size:12px;font-weight:700">${escapeHtml(t('ui.timezone'))}</span><input id="schedule-timezone" value="Europe/Moscow" style="padding:10px 12px;border-radius:8px;border:1px solid ${colors.border};background:${colors.card};color:${colors.text}" /></label>
                 </div>
                 <button id="create-schedule" style="padding:10px 16px;border:0;border-radius:8px;background:${colors.accent};color:white;font-weight:700;cursor:pointer">${escapeHtml(t('ui.createSchedule'))}</button>
@@ -192,7 +192,7 @@ export function mount(container: HTMLElement, api: PluginAPI): void {
                 <div style="display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap">
                   <div style="flex:1;min-width:250px">
                     <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap"><strong>${escapeHtml(schedule.name)}</strong><span style="padding:2px 7px;border-radius:999px;background:${schedule.enabled ? colors.accent : colors.border};color:${schedule.enabled ? 'white' : colors.muted};font-size:11px">${escapeHtml(schedule.enabled ? t('ui.enabled') : t('ui.disabled'))}</span><span style="color:${resultColor};font-size:12px">${escapeHtml(scheduleResultLabel(schedule, locale))}</span></div>
-                    <div style="margin-top:5px;color:${colors.muted};font-size:12px">${escapeHtml(schedule.sessionTitle)} · ${escapeHtml(t('ui.dailyAt', { time: schedule.time, timezone: schedule.timezone }))} · ${escapeHtml(schedule.model)} / ${escapeHtml(schedule.effort)}</div>
+                    <div style="margin-top:5px;color:${colors.muted};font-size:12px">${escapeHtml(schedule.sessionTitle)} · ${escapeHtml(t('ui.dailyAt', { time: schedule.time, timezone: schedule.timezone }))} · ${escapeHtml(schedule.model || t('ui.sessionSetting'))} / ${escapeHtml(schedule.effort || t('ui.sessionSetting'))}</div>
                     <div style="margin-top:4px;color:${colors.muted};font-size:12px">${escapeHtml(t('ui.next'))}: ${schedule.enabled ? escapeHtml(formatTimestamp(schedule.nextRun, locale)) : escapeHtml(t('ui.off'))} · ${escapeHtml(t('ui.last'))}: ${escapeHtml(formatTimestamp(schedule.lastRun, locale))}</div>
                     <details style="margin-top:7px"><summary style="cursor:pointer;color:${colors.muted};font-size:12px">${escapeHtml(t('ui.showTask'))}</summary><pre style="white-space:pre-wrap;margin:8px 0 0;padding:9px;border-radius:7px;background:${colors.bg};font:12px ui-monospace,SFMono-Regular,monospace">${escapeHtml(schedule.prompt)}</pre></details>
                   </div>
@@ -288,7 +288,7 @@ export function mount(container: HTMLElement, api: PluginAPI): void {
       const time = root.querySelector<HTMLInputElement>('#schedule-time')?.value.trim() ?? '';
       const prompt = root.querySelector<HTMLTextAreaElement>('#schedule-prompt')?.value.trim() ?? '';
       const model = root.querySelector<HTMLInputElement>('#schedule-model')?.value.trim() ?? '';
-      const effort = root.querySelector<HTMLSelectElement>('#schedule-effort')?.value ?? 'max';
+      const effort = root.querySelector<HTMLSelectElement>('#schedule-effort')?.value ?? '';
       const timezone = root.querySelector<HTMLInputElement>('#schedule-timezone')?.value.trim() ?? '';
       if (!name || !time || !prompt) {
         error = t('ui.fillSchedule');

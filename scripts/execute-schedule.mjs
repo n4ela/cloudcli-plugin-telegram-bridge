@@ -42,10 +42,10 @@ const helperArguments = [
   helperPath,
   schedule.sessionId,
   promptPath,
-  `--model=${schedule.model}`,
-  `--effort=${schedule.effort}`,
   '--timeout-seconds=1800',
 ];
+if (schedule.model) helperArguments.push(`--model=${schedule.model}`);
+if (schedule.effort) helperArguments.push(`--effort=${schedule.effort}`);
 run(process.execPath, helperArguments, {
   cwd: schedule.workingDirectory || undefined,
 });

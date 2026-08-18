@@ -2,7 +2,7 @@
 
 Bidirectional Telegram access to an existing CloudCLI session, plus persistent
 scheduled agent turns. The bridge uses the same provider run and the same
-conversation: it does not start a second Codex process or maintain a separate
+conversation: it does not start a second provider process or maintain a separate
 Telegram history.
 
 ## Features
@@ -11,7 +11,7 @@ Telegram history.
 - Mirror prompts and normalized live events between WebUI and Telegram.
 - Keep model, reasoning effort, permission mode, queue, and provider-native history session-scoped.
 - Deliver WebUI-originated prompts and their replies silently in Telegram.
-- Run genuine scheduled Codex turns in the existing session through persistent systemd timers.
+- Run genuine scheduled agent turns in the existing session through persistent systemd timers.
 - English and Russian UI/bot messages. The plugin follows the CloudCLI language and falls back to English.
 - Long polling: no public Telegram webhook or inbound port is required.
 
@@ -66,8 +66,9 @@ The binding is persistent. Use `/mode`, `/mode safe`, `/mode project`, or
 
 ## Schedules
 
-The plugin tab creates daily schedules with a session, timezone, prompt, model,
-and reasoning effort. Each schedule is backed by
+The plugin tab creates daily schedules with a session, timezone, and prompt.
+By default the scheduled run inherits the session's provider, model, and
+reasoning effort; optional model and effort overrides remain available. Each schedule is backed by
 `cloudcli-schedule-<id>.service` and `.timer`, with `Persistent=true`, so it
 survives CloudCLI/plugin restarts and catches up after server downtime.
 
@@ -80,7 +81,7 @@ For manual automation, use:
 
 ```bash
 node scripts/run-session.mjs SESSION_ID PROMPT_FILE \
-  --model=gpt-5.6-sol --effort=max --timeout-seconds=1800
+  --timeout-seconds=1800
 ```
 
 `scripts/notify-session.py` is also included for notification-only delivery
@@ -104,7 +105,7 @@ both `manifest.json` and `package.json`.
 
 Плагин привязывает Telegram-чат или тему к уже существующей сессии CloudCLI.
 Сообщения, ответы, режим доступа и запуски по расписанию используют одну и ту
-же историю Codex. Интерфейс автоматически переключается между русским и
+же историю выбранного провайдера — Codex или Kimi. Интерфейс автоматически переключается между русским и
 английским вместе с языком CloudCLI; для остальных языков используется
 английский. Установка и ограничения описаны выше.
 

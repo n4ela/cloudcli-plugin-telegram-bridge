@@ -258,10 +258,10 @@ function scheduleFromBody(body: Record<string, unknown>): BridgeSchedule {
     : 'Europe/Moscow';
   const model = typeof body.model === 'string' && body.model.trim()
     ? body.model.trim().slice(0, 100)
-    : 'gpt-5.6-sol';
+    : '';
   const effort = typeof body.effort === 'string' && SCHEDULE_EFFORTS.has(body.effort)
     ? body.effort
-    : 'max';
+    : '';
   const workingDirectory = typeof body.workingDirectory === 'string' && body.workingDirectory.trim()
     ? body.workingDirectory.trim()
     : undefined;
@@ -579,9 +579,11 @@ async function handleCloudCliEvent(event: CloudCliEvent): Promise<void> {
 
   if (event.kind === 'text' && event.role === 'assistant' && event.content) {
     streamBuffers.delete(sessionId);
-    await mirrorToSessionBindings(sessionId, `🤖 Codex\n\n${event.content}`, {
-      silent: assistantDeliveryIsSilent(sessionId),
-    });
+    await Promise.all(activeBindingsForSession(sessionId).map((binding) => sendTelegramText(
+      binding,
+      `${translate(binding.locale, 'bot.agent')}\n\n${event.content}`,
+      { silent: assistantDeliveryIsSilent(sessionId) },
+    )));
     return;
   }
 
@@ -594,9 +596,11 @@ async function handleCloudCliEvent(event: CloudCliEvent): Promise<void> {
     const buffered = streamBuffers.get(sessionId);
     streamBuffers.delete(sessionId);
     if (buffered) {
-      await mirrorToSessionBindings(sessionId, `🤖 Codex\n\n${buffered}`, {
-        silent: assistantDeliveryIsSilent(sessionId),
-      });
+      await Promise.all(activeBindingsForSession(sessionId).map((binding) => sendTelegramText(
+        binding,
+        `${translate(binding.locale, 'bot.agent')}\n\n${buffered}`,
+        { silent: assistantDeliveryIsSilent(sessionId) },
+      )));
     }
     return;
   }
@@ -604,7 +608,7 @@ async function handleCloudCliEvent(event: CloudCliEvent): Promise<void> {
   if (event.kind === 'error') {
     await Promise.all(activeBindingsForSession(sessionId).map((binding) => sendTelegramText(
       binding,
-      `⚠️ Codex: ${String(event.content || translate(binding.locale, 'bot.codexUnknownError'))}`,
+      `${translate(binding.locale, 'bot.agentError')}: ${String(event.content || translate(binding.locale, 'bot.agentUnknownError'))}`,
     )));
     return;
   }
@@ -613,9 +617,11 @@ async function handleCloudCliEvent(event: CloudCliEvent): Promise<void> {
     const buffered = streamBuffers.get(sessionId);
     streamBuffers.delete(sessionId);
     if (buffered) {
-      await mirrorToSessionBindings(sessionId, `🤖 Codex\n\n${buffered}`, {
-        silent: assistantDeliveryIsSilent(sessionId),
-      });
+      await Promise.all(activeBindingsForSession(sessionId).map((binding) => sendTelegramText(
+        binding,
+        `${translate(binding.locale, 'bot.agent')}\n\n${buffered}`,
+        { silent: assistantDeliveryIsSilent(sessionId) },
+      )));
     }
     processingSessions.delete(sessionId);
     cancelSessionStatusRecheck(sessionId);

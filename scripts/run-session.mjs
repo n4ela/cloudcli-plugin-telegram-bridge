@@ -94,7 +94,7 @@ function submitPrompt() {
   if (effort) options.effort = effort;
 
   submitted = true;
-  log(`session ${sessionId} is idle; starting the scheduled Codex turn`);
+  log(`session ${sessionId} is idle; starting the scheduled agent turn`);
   send({
     type: 'chat.send',
     sessionId,
@@ -122,7 +122,7 @@ function handleMessage(payload) {
   if (payload.kind === 'chat_subscribed') {
     if (submitted) {
       if (!payload.isProcessing) {
-        finish(0, 'scheduled Codex turn finished while the helper was reconnecting');
+        finish(0, 'scheduled agent turn finished while the helper was reconnecting');
       }
       return;
     }
@@ -149,8 +149,8 @@ function handleMessage(payload) {
   if (submitted && payload.kind === 'complete') {
     const success = payload.success !== false && payload.exitCode !== 1 && !payload.aborted;
     finish(success ? 0 : 1, success
-      ? 'scheduled Codex turn completed successfully'
-      : `scheduled Codex turn failed (exitCode=${String(payload.exitCode)}, aborted=${String(payload.aborted)})`);
+      ? 'scheduled agent turn completed successfully'
+      : `scheduled agent turn failed (exitCode=${String(payload.exitCode)}, aborted=${String(payload.aborted)})`);
   }
 }
 
