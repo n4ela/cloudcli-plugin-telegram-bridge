@@ -95,8 +95,10 @@ npm run build
 ```
 
 `dist/` is generated and intentionally not committed. CloudCLI builds the
-plugin during Git installation. Releases follow semantic versioning in both
-`manifest.json` and `package.json`.
+plugin during Git installation. The browser entry is bundled into one
+self-contained ESM file because CloudCLI loads it from a Blob URL; the build
+fails if a relative import remains. Releases follow semantic versioning in
+both `manifest.json` and `package.json`.
 
 ## Русский
 

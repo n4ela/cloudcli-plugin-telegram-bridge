@@ -1,6 +1,6 @@
 {
   "name": "cloudcli-plugin-telegram-bridge",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "private": true,
   "description": "Bidirectional Telegram bridge and persistent scheduled agent turns for CloudCLI.",
   "license": "MIT",
@@ -18,11 +18,15 @@
     "node": ">=20"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "npm run build:compile && npm run build:ui && npm run build:verify",
+    "build:compile": "tsc -p tsconfig.json",
+    "build:ui": "esbuild src/index.ts --bundle --format=esm --platform=browser --target=es2022 --outfile=dist/index.js",
+    "build:verify": "node scripts/verify-ui-bundle.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "devDependencies": {
     "@types/node": "^22.19.7",
+    "esbuild": "^0.25.0",
     "typescript": "^5.9.3"
   }
 }
