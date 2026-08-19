@@ -527,6 +527,10 @@ async function handleCloudCliEvent(event: CloudCliEvent): Promise<void> {
     else {
       cancelSessionStatusRecheck(sessionId);
       processingSessions.delete(sessionId);
+      // CloudCLI sequences events per provider run. Once the session is idle,
+      // the next run starts at seq=1 again, so retaining the previous run's
+      // high-water mark would make the bridge discard the next reply.
+      lastSequenceBySession.delete(sessionId);
       sendNextPrompt(sessionId);
     }
     return;
@@ -624,6 +628,9 @@ async function handleCloudCliEvent(event: CloudCliEvent): Promise<void> {
       )));
     }
     processingSessions.delete(sessionId);
+    // `seq` is scoped to this completed run, not to the lifetime of the app
+    // session. Reset before another WebUI or Telegram prompt starts a run.
+    lastSequenceBySession.delete(sessionId);
     cancelSessionStatusRecheck(sessionId);
     inFlightPrompts.delete(sessionId);
     automationSessions.delete(sessionId);
