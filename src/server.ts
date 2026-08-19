@@ -68,12 +68,35 @@ type TelegramResponse<T> = {
   ok: boolean;
   result?: T;
   description?: string;
+  error_code?: number;
+  parameters?: { retry_after?: number };
 };
 
 type QueuedPrompt = {
   content: string;
   telegramMessageId: number;
 };
+
+type TelegramOutboxItem = {
+  id: string;
+  chatId: number;
+  threadId: number;
+  text: string;
+  silent: boolean;
+  attempts: number;
+  createdAt: string;
+};
+
+class TelegramApiError extends Error {
+  constructor(
+    message: string,
+    readonly retryable: boolean,
+    readonly retryAfterMs?: number,
+  ) {
+    super(message);
+    this.name = 'TelegramApiError';
+  }
+}
 
 type CloudCliEvent = Record<string, unknown> & {
   kind?: string;
@@ -91,6 +114,7 @@ type CloudCliEvent = Record<string, unknown> & {
 const CONFIG_DIRECTORY = process.env.CLOUDCLI_TELEGRAM_CONFIG_DIR
   || path.join(os.homedir(), '.cloudcli', 'telegram-bridge');
 const CONFIG_PATH = path.join(CONFIG_DIRECTORY, 'config.json');
+const OUTBOX_PATH = path.join(CONFIG_DIRECTORY, 'outbox.json');
 const SCHEDULES_DIRECTORY = path.join(CONFIG_DIRECTORY, 'schedules');
 const PLUGIN_DIRECTORY = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SCHEDULE_WORKER_PATH = path.join(PLUGIN_DIRECTORY, 'scripts', 'execute-schedule.mjs');
@@ -98,8 +122,13 @@ const TELEGRAM_MESSAGE_LIMIT = 3900;
 const PAIR_CODE_TTL_MS = 10 * 60 * 1000;
 const SESSION_STATUS_RECHECK_MS = 2_000;
 const BUSY_NOTICE_DELAY_MS = 1_200;
+const OUTBOX_RETRY_MIN_MS = 2_000;
+const OUTBOX_RETRY_MAX_MS = 30_000;
 
 let config = loadConfig();
+let telegramOutbox = loadTelegramOutbox();
+let telegramOutboxRunning = false;
+let telegramOutboxTimer: NodeJS.Timeout | null = null;
 let cloudcliSocket: WebSocket | null = null;
 let cloudcliReconnectTimer: NodeJS.Timeout | null = null;
 let cloudcliReconnectAttempt = 0;
@@ -117,6 +146,10 @@ const streamBuffers = new Map<string, string>();
 const lastSequenceBySession = new Map<string, number>();
 const sessionStatusRecheckTimers = new Map<string, NodeJS.Timeout>();
 const permissionModesBySession = new Map<string, string>();
+const telegramOutboxWaiters = new Map<string, {
+  resolve: () => void;
+  reject: (error: unknown) => void;
+}>();
 
 const TELEGRAM_PERMISSION_MODES: Record<string, string> = {
   safe: 'default',
@@ -164,6 +197,34 @@ function saveConfig(): void {
   fs.writeFileSync(temporaryPath, JSON.stringify(config, null, 2), { mode: 0o600 });
   fs.renameSync(temporaryPath, CONFIG_PATH);
   fs.chmodSync(CONFIG_PATH, 0o600);
+}
+
+function loadTelegramOutbox(): TelegramOutboxItem[] {
+  try {
+    const stored = JSON.parse(fs.readFileSync(OUTBOX_PATH, 'utf8')) as unknown;
+    if (!Array.isArray(stored)) return [];
+    return stored.filter((item): item is TelegramOutboxItem => Boolean(
+      item
+      && typeof item === 'object'
+      && typeof item.id === 'string'
+      && typeof item.chatId === 'number'
+      && typeof item.threadId === 'number'
+      && typeof item.text === 'string'
+      && typeof item.silent === 'boolean'
+      && typeof item.attempts === 'number'
+      && typeof item.createdAt === 'string',
+    ));
+  } catch {
+    return [];
+  }
+}
+
+function saveTelegramOutbox(): void {
+  fs.mkdirSync(CONFIG_DIRECTORY, { recursive: true, mode: 0o700 });
+  const temporaryPath = `${OUTBOX_PATH}.tmp`;
+  fs.writeFileSync(temporaryPath, JSON.stringify(telegramOutbox, null, 2), { mode: 0o600 });
+  fs.renameSync(temporaryPath, OUTBOX_PATH);
+  fs.chmodSync(OUTBOX_PATH, 0o600);
 }
 
 function recordError(error: unknown): void {
@@ -313,7 +374,14 @@ async function telegramApi<T>(method: string, payload: Record<string, unknown> =
   });
   const result = await response.json() as TelegramResponse<T>;
   if (!response.ok || !result.ok || result.result === undefined) {
-    throw new Error(result.description || `Telegram ${method} failed with HTTP ${response.status}`);
+    const status = result.error_code ?? response.status;
+    throw new TelegramApiError(
+      result.description || `Telegram ${method} failed with HTTP ${status}`,
+      status === 429 || status >= 500,
+      typeof result.parameters?.retry_after === 'number'
+        ? result.parameters.retry_after * 1_000
+        : undefined,
+    );
   }
   return result.result;
 }
@@ -333,20 +401,95 @@ function splitTelegramText(text: string): string[] {
   return parts;
 }
 
+function scheduleTelegramOutboxRetry(delay: number): void {
+  if (telegramOutboxTimer) return;
+  telegramOutboxTimer = setTimeout(() => {
+    telegramOutboxTimer = null;
+    void flushTelegramOutbox();
+  }, delay);
+  telegramOutboxTimer.unref?.();
+}
+
+async function flushTelegramOutbox(): Promise<void> {
+  if (telegramOutboxRunning || !telegramOutbox.length) return;
+  telegramOutboxRunning = true;
+
+  try {
+    while (telegramOutbox.length) {
+      const item = telegramOutbox[0];
+      const payload: Record<string, unknown> = {
+        chat_id: item.chatId,
+        text: item.text,
+        disable_web_page_preview: true,
+        disable_notification: item.silent,
+      };
+      if (item.threadId) payload.message_thread_id = item.threadId;
+
+      try {
+        await telegramApi('sendMessage', payload);
+        telegramOutbox.shift();
+        saveTelegramOutbox();
+        telegramOutboxWaiters.get(item.id)?.resolve();
+        telegramOutboxWaiters.delete(item.id);
+      } catch (error) {
+        recordError(error);
+        if (error instanceof TelegramApiError && !error.retryable) {
+          telegramOutbox.shift();
+          saveTelegramOutbox();
+          telegramOutboxWaiters.get(item.id)?.reject(error);
+          telegramOutboxWaiters.delete(item.id);
+          continue;
+        }
+
+        item.attempts += 1;
+        saveTelegramOutbox();
+        const exponentialDelay = Math.min(
+          OUTBOX_RETRY_MAX_MS,
+          OUTBOX_RETRY_MIN_MS * 2 ** Math.min(item.attempts - 1, 4),
+        );
+        const retryDelay = error instanceof TelegramApiError && error.retryAfterMs
+          ? Math.max(exponentialDelay, error.retryAfterMs)
+          : exponentialDelay;
+        scheduleTelegramOutboxRetry(retryDelay);
+        return;
+      }
+    }
+  } finally {
+    telegramOutboxRunning = false;
+  }
+}
+
+function enqueueTelegramPart(
+  binding: BridgeBinding,
+  text: string,
+  options: { silent?: boolean },
+): Promise<void> {
+  const item: TelegramOutboxItem = {
+    id: randomUUID(),
+    chatId: binding.chatId,
+    threadId: binding.threadId,
+    text,
+    silent: Boolean(options.silent),
+    attempts: 0,
+    createdAt: new Date().toISOString(),
+  };
+  telegramOutbox.push(item);
+  saveTelegramOutbox();
+
+  const completion = new Promise<void>((resolve, reject) => {
+    telegramOutboxWaiters.set(item.id, { resolve, reject });
+  });
+  void flushTelegramOutbox();
+  return completion;
+}
+
 async function sendTelegramText(
   binding: BridgeBinding,
   text: string,
   options: { silent?: boolean } = {},
 ): Promise<void> {
   for (const part of splitTelegramText(text)) {
-    const payload: Record<string, unknown> = {
-      chat_id: binding.chatId,
-      text: part,
-      disable_web_page_preview: true,
-      disable_notification: Boolean(options.silent),
-    };
-    if (binding.threadId) payload.message_thread_id = binding.threadId;
-    await telegramApi('sendMessage', payload);
+    await enqueueTelegramPart(binding, part, options);
   }
 }
 
@@ -450,7 +593,7 @@ function connectCloudCli(): void {
     socket.addEventListener('message', (event) => {
       try {
         const payload = JSON.parse(String(event.data)) as CloudCliEvent;
-        void handleCloudCliEvent(payload);
+        void handleCloudCliEvent(payload).catch(recordError);
       } catch (error) {
         recordError(error);
       }
@@ -509,7 +652,16 @@ function assistantDeliveryIsSilent(sessionId: string): boolean {
 async function handleCloudCliEvent(event: CloudCliEvent): Promise<void> {
   const sessionId = typeof event.sessionId === 'string' ? event.sessionId : '';
   if (sessionId && typeof event.seq === 'number') {
-    const previous = lastSequenceBySession.get(sessionId) ?? 0;
+    let previous = lastSequenceBySession.get(sessionId) ?? 0;
+    // Sequence numbers restart at 1 for every provider run. A bridge can miss
+    // the previous run's terminal `complete` while its CloudCLI socket is
+    // reconnecting; without this boundary check, the retained high-water mark
+    // makes it discard the entire next reply as an old replay.
+    if (event.seq === 1 && previous > 0) {
+      previous = 0;
+      lastSequenceBySession.delete(sessionId);
+      streamBuffers.delete(sessionId);
+    }
     if (event.seq <= previous) return;
     lastSequenceBySession.set(sessionId, event.seq);
   }
@@ -823,6 +975,7 @@ function status(): BridgeStatus {
       ...binding,
       permissionMode: permissionModesBySession.get(binding.sessionId),
     })),
+    outboxPending: telegramOutbox.length,
     lastError,
   };
 }
@@ -1014,11 +1167,13 @@ server.listen(0, '127.0.0.1', () => {
     console.log(JSON.stringify({ ready: true, port: address.port }));
   }
   connectCloudCli();
+  void flushTelegramOutbox();
   void startTelegram().catch(recordError);
 });
 
 function shutdown(): void {
   telegramAbortController?.abort();
+  if (telegramOutboxTimer) clearTimeout(telegramOutboxTimer);
   if (cloudcliReconnectTimer) clearTimeout(cloudcliReconnectTimer);
   for (const timer of sessionStatusRecheckTimers.values()) clearTimeout(timer);
   sessionStatusRecheckTimers.clear();

@@ -1,7 +1,7 @@
 {
   "name": "telegram-bridge",
   "displayName": "Telegram Bridge",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "Mirror CloudCLI sessions to Telegram and run persistent scheduled agent turns.",
   "author": "Ivanov D.V.",
   "icon": "icon.svg",

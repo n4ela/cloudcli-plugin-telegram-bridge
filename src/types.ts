@@ -32,6 +32,7 @@ export type BridgeStatus = {
   cloudcliConnected: boolean;
   serviceConfigured: boolean;
   bindings: BridgeBinding[];
+  outboxPending: number;
   lastError: string | null;
 };
 
