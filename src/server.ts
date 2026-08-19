@@ -927,10 +927,17 @@ const server = http.createServer(async (request, response) => {
         writeJson(response, 400, { error: 'Invalid Telegram token format' });
         return;
       }
-      const bot = await startTelegram(token);
+      const previousToken = config.botToken;
       config.botToken = token;
-      saveConfig();
-      writeJson(response, 200, bot);
+      try {
+        const bot = await startTelegram(token);
+        saveConfig();
+        writeJson(response, 200, bot);
+      } catch (caught) {
+        config.botToken = previousToken;
+        void startTelegram(previousToken).catch(recordError);
+        throw caught;
+      }
       return;
     }
     if (request.method === 'POST' && url.pathname === '/notify') {
